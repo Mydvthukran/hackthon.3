@@ -3,14 +3,14 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, ScatterChart, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
-import { Maximize2, X, AlertTriangle, BarChart2, Download } from 'lucide-react';
+import { Maximize2, X, AlertTriangle, BarChart2, Download, Lightbulb, TrendingUp, Target } from 'lucide-react';
 import type { DashboardSpec, ChartConfig, KPIConfig } from '../types';
 
 interface DashboardProps {
   spec: DashboardSpec;
 }
 
-const COLORS = ['#4f9ef8', '#a371f7', '#3fb950', '#d29922', '#f85149', '#6ab8ff', '#ec6cb9'];
+const COLORS = ['#06b6d4', '#10b981', '#fb7185', '#fb923c', '#22d3ee', '#34d399', '#f472b6'];
 
 // ── Helpers ─────────────────────────────────────────────────────────
 function formatKpiValue(value: string | number | boolean | null): string {
@@ -44,11 +44,57 @@ function exportDashboardCSV(spec: DashboardSpec) {
   URL.revokeObjectURL(url);
 }
 
+// Generate AI-like insights from dashboard data
+function generateInsights(spec: DashboardSpec): Array<{icon: React.ComponentType<any>, title: string, description: string, color: string}> {
+  const insights = [];
+
+  // Insight from KPIs
+  if (spec.kpis && spec.kpis.length > 0) {
+    const topKPI = spec.kpis[0];
+    if (topKPI && topKPI.value !== null) {
+      insights.push({
+        icon: Target,
+        title: 'Key Metric',
+        description: `${topKPI.label}: ${formatKpiValue(topKPI.value)}`,
+        color: '#06b6d4'
+      });
+    }
+  }
+
+  // Insight from charts
+  if (spec.charts && spec.charts.length > 0) {
+    insights.push({
+      icon: TrendingUp,
+      title: 'Data Trends',
+      description: `Analysis includes ${spec.charts.length} visualization${spec.charts.length > 1 ? 's' : ''} across different dimensions`,
+      color: '#10b981'
+    });
+
+    // Find charts with most data points
+    const chartWithMostData = spec.charts.reduce((max, chart) =>
+      (chart.chart_data?.length || 0) > (max.chart_data?.length || 0) ? chart : max
+    , spec.charts[0]);
+
+    if (chartWithMostData?.chart_data?.length) {
+      insights.push({
+        icon: Lightbulb,
+        title: 'Rich Dataset',
+        description: `${chartWithMostData.title} contains ${chartWithMostData.chart_data.length} data points for detailed analysis`,
+        color: '#fb7185'
+      });
+    }
+  }
+
+  return insights;
+}
+
 // ── Dashboard ────────────────────────────────────────────────────────
 export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
   const [fullscreenChart, setFullscreenChart] = useState<ChartConfig | null>(null);
   const [chartSearch, setChartSearch] = useState('');
   const [activeChartType, setActiveChartType] = useState<string>('all');
+
+  const insights = useMemo(() => generateInsights(spec), [spec]);
 
   const chartTypes = useMemo(
     () => Array.from(new Set((spec.charts ?? []).map(c => c.chart_type))),
@@ -114,6 +160,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* AI Insights Summary */}
+      {insights.length > 0 && (
+        <div className="insights-row">
+          {insights.map((insight, idx) => {
+            const IconComponent = insight.icon;
+            return (
+              <div
+                key={idx}
+                className="glass-panel insight-card"
+                style={{ animationDelay: `${idx * 80}ms` }}
+              >
+                <div className="insight-icon" style={{ color: insight.color }}>
+                  <IconComponent size={20} />
+                </div>
+                <div className="insight-content">
+                  <h4 className="insight-title">{insight.title}</h4>
+                  <p className="insight-description">{insight.description}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

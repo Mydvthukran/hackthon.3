@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Bot, Sparkles, Send, Upload, FileText, X, Trash2, CheckCircle, AlertCircle, Info, Menu } from 'lucide-react';
+import { Bot, Sparkles, Send, Upload, FileText, X, Trash2, CheckCircle, AlertCircle, Info, Menu, Download, Save, FolderOpen } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import type { DashboardSpec } from './types';
+import { saveDashboardConfig, loadDashboardConfig } from './utils/exportUtils';
 import './index.css';
 
 interface Message {
@@ -166,6 +167,44 @@ function App() {
     showToast('info', 'Chat history cleared.');
   };
 
+  const handleSaveDashboard = () => {
+    if (!currentSpec) {
+      showToast('error', 'No dashboard to save');
+      return;
+    }
+    saveDashboardConfig(currentSpec);
+    showToast('success', 'Dashboard configuration saved');
+  };
+
+  const handleLoadDashboard = async () => {
+    try {
+      const config = await loadDashboardConfig();
+      setCurrentSpec(config);
+      showToast('success', 'Dashboard configuration loaded');
+    } catch (error) {
+      showToast('error', 'Failed to load dashboard configuration');
+    }
+  };
+
+  const handleExportDashboard = () => {
+    if (!currentSpec) {
+      showToast('error', 'No dashboard to export');
+      return;
+    }
+
+    // Simple download of dashboard JSON
+    const dataStr = JSON.stringify(currentSpec, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `dashboard-export-${Date.now()}.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+
+    showToast('success', 'Dashboard exported successfully');
+  };
+
   const handleSend = async (query: string) => {
     if (!query.trim()) return;
 
@@ -270,6 +309,30 @@ function App() {
               <span>Instant BI</span>
             </div>
             <div className="header-actions">
+              <button
+                className="icon-btn"
+                onClick={handleLoadDashboard}
+                title="Load dashboard"
+                disabled={isLoading}
+              >
+                <FolderOpen size={14} />
+              </button>
+              <button
+                className="icon-btn"
+                onClick={handleSaveDashboard}
+                title="Save dashboard"
+                disabled={!currentSpec || isLoading}
+              >
+                <Save size={14} />
+              </button>
+              <button
+                className="icon-btn"
+                onClick={handleExportDashboard}
+                title="Export dashboard"
+                disabled={!currentSpec || isLoading}
+              >
+                <Download size={14} />
+              </button>
               <button
                 className="icon-btn danger"
                 onClick={clearChat}
