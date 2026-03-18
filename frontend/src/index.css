@@ -197,6 +197,79 @@ body {
   border-color: rgba(88, 166, 255, 0.3);
 }
 
+/* Upload zone */
+.upload-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px dashed rgba(88, 166, 255, 0.4);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(88, 166, 255, 0.04);
+}
+
+.upload-zone:hover {
+  border-color: rgba(88, 166, 255, 0.7);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.upload-zone.uploading {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.upload-zone-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* File info bar (shown after upload) */
+.file-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.file-info-name {
+  flex: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-info-meta {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.file-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.file-clear-btn:hover {
+  color: #f85149;
+}
+
 .loader {
   display: flex;
   align-items: center;
