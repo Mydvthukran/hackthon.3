@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 from dotenv import load_dotenv
 from google import genai
@@ -8,7 +8,7 @@ from google.genai import types
 load_dotenv()
 
 # Initialize client
-api_key = os.environ.get("GEMINI_API_KEY")
+api_key = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip().strip('"').strip("'")
 if not api_key:
     raise ValueError(
         "GEMINI_API_KEY environment variable is not set. "
@@ -17,6 +17,16 @@ if not api_key:
     )
 
 client = genai.Client(api_key=api_key)
+
+# Comma-separated model list allows automatic fallback on quota/rate errors.
+MODEL_CANDIDATES = [
+    m.strip()
+    for m in os.environ.get("GEMINI_MODELS", "gemini-2.5-flash,gemini-2.0-flash-lite").split(",")
+    if m.strip()
+]
+
+# Disable second LLM call by default to reduce free-tier quota usage.
+ENABLE_LLM_INSIGHTS = os.environ.get("ENABLE_LLM_INSIGHTS", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 SYSTEM_PROMPT = """You are a Business-Intelligence (BI) Assistant whose job is to convert a plain-English analytics request into a strictly-structured, executable dashboard specification that a downstream system (or coding agent) can use to: (1) run safe queries against the provided dataset, (2) produce one or more visualizations, and (3) enable follow-up conversational filtering. You MUST follow these rules exactly.
 
@@ -86,19 +96,40 @@ parts-of-whole with <=6 categories -> pie/donut; if >6 use sorted bar
 
 distribution -> histogram or boxplot
 
-
-# Comma-separated model list allows automatic fallback on quota/rate errors.
-MODEL_CANDIDATES = [
-    m.strip()
-    for m in os.environ.get("GEMINI_MODELS", "gemini-2.5-flash,gemini-2.0-flash-lite").split(",")
-    if m.strip()
-]
-
-ENABLE_LLM_INSIGHTS = os.environ.get("ENABLE_LLM_INSIGHTS", "false").strip().lower() in {"1", "true", "yes", "on"}
 geographic (lat/lon or region code) -> choropleth if mapping fields exist
 
 multi-series/time + stacking candidate -> stacked_bar or combo
 Document why you chose the chart in description.
+
+
+
+5. Top-K and annotations: When the user asks to "highlight top N," include an annotation mechanism: either computed column is_top in SQL or an annotations note describing how to compute/top items.
+
+
+6. Confidence & hallucination detection: Set confidence in [0.0,1.0]. If your plan references any column not present in {{SCHEMA}}, set confidence <= 0.25, sql: null, and add a warning naming the missing column and suggested alternatives. Do not attempt to "guess" missing columns.
+
+
+7. Dry-run sample: If you return sql, the orchestrator will perform a safe dry-run LIMIT 5 to collect source_rows_sample. Prepare SQL to be safe for that operation. If dry-run would return zero rows for a reasonable date range implied by the request, include a warning.
+
+
+8. Follow-up friendliness: Provide follow_up_suggestions - 3 concise, actionable next queries the user can ask (e.g., "filter to East Coast", "show weekly instead of monthly"). Set can_follow_up: true unless the query is impossible with given data.
+
+
+9. Aggregation & granularity: When user requests a period (e.g., "Q3"), convert to param names (:start_date,:end_date) and include them in params. Do not hardcode absolute dates unless user specified exact dates.
+
+
+10. Multiple charts: Limit charts array to 1-4 charts (KPI + 1-3 visualizations). Prefer a short summary KPI card when the user asks for totals or highlights.
+
+
+11. Error messages: If the user request is ambiguous (e.g., "sales" but there is revenue not sales), pick the best match but add a warning naming the substitution and set confidence accordingly (0.4-0.7 depending on closeness). If truly ambiguous, set confidence < 0.4, sql: null, and add a clarifying suggestion in follow_up_suggestions.
+
+
+12. Privacy & safety: Never output secrets, API keys, or PII in any field. Keep notes and warnings user-friendly.
+
+
+
+--- CHART_TYPE ALLOWED VALUES (use exactly) --- line, area, bar, stacked_bar, pie, donut, treemap, table, histogram, boxplot, choropleth, combo
+"""
 
 
 def _generate_content_with_fallback(prompt: str, temperature: float):
@@ -118,9 +149,11 @@ def _generate_content_with_fallback(prompt: str, temperature: float):
         except Exception as e:
             last_error = e
             error_msg = str(e)
+
             # Keep trying model fallback for quota/rate related failures.
             if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
                 continue
+
             # For auth issues, fail immediately with a clear message.
             if "403" in error_msg or "PERMISSION_DENIED" in error_msg:
                 raise ValueError(
@@ -128,6 +161,7 @@ def _generate_content_with_fallback(prompt: str, temperature: float):
                     "expired, or reported as leaked. Please check your GEMINI_API_KEY environment variable "
                     "and get a new API key from: https://makersuite.google.com/app/apikey"
                 ) from e
+
             raise
 
     # If all fallbacks were exhausted, surface a concise and actionable quota message.
@@ -137,35 +171,10 @@ def _generate_content_with_fallback(prompt: str, temperature: float):
     ) from last_error
 
 
-
-
-    response = _generate_content_with_fallback(prompt, temperature=0.2)
-
-12. Privacy & safety: Never output secrets, API keys, or PII in any field. Keep notes and warnings user-friendly.
-
-    if not ENABLE_LLM_INSIGHTS:
-        return []
-
-
---- CHART_TYPE ALLOWED VALUES (use exactly) --- line, area, bar, stacked_bar, pie, donut, treemap, table, histogram, boxplot, choropleth, combo
-"""
-
 def generate_dashboard_spec(schema: str, sample_rows: str, user_request: str) -> dict:
     prompt = SYSTEM_PROMPT.replace("{{SCHEMA}}", schema).replace("{{SAMPLE_ROWS}}", sample_rows).replace("{{USER_REQUEST}}", user_request)
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-        response = _generate_content_with_fallback(prompt, temperature=0.3)
-                "API key authentication failed. Your Google Gemini API key may be invalid, "
-                "expired, or reported as leaked. Please check your GEMINI_API_KEY environment variable "
-                "and get a new API key from: https://makersuite.google.com/app/apikey"
-            ) from e
-        # Re-raise other exceptions
-        raise
+    response = _generate_content_with_fallback(prompt, temperature=0.2)
 
     try:
         raw_text = response.text
@@ -180,29 +189,26 @@ def generate_dashboard_spec(schema: str, sample_rows: str, user_request: str) ->
         print("Raw response:", response.text)
         raise e
 
+
 def generate_data_insights(user_request: str, data_results: dict) -> list:
     """Takes the actual queried data and asks the LLM to extract text insights."""
+    if not ENABLE_LLM_INSIGHTS:
+        return []
+
     # Convert data to a short string (limit size to prevent massive token usage)
     data_str = json.dumps(data_results, default=str)[:8000]
 
     prompt = f"""You are a Data Analyst.
-The user asked: "{user_request}"
+The user asked: \"{user_request}\"
 Here is a sample of the data returned from the database queries:
 {data_str}
 
 Provide 2-3 brief, actionable insights summarizing the key trends, anomalies, or findings in this data.
 Return ONLY a JSON list of strings.
-Example: ["Sales grew by 20% in Q3.", "The most popular product category is Electronics."]
+Example: [\"Sales grew by 20% in Q3.\", \"The most popular product category is Electronics.\"]
 """
     try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3,
-            ),
-        )
+        response = _generate_content_with_fallback(prompt, temperature=0.3)
 
         raw_text = response.text
         if raw_text.startswith("```json"):
