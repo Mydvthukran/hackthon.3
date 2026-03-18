@@ -105,7 +105,23 @@ If you want to deploy frontend to Vercel and backend to Render separately:
 
 📖 **See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions and troubleshooting.**
 
-## ⚠️ Troubleshooting: 405 Error on File Upload
+## ⚠️ Troubleshooting
+
+### 403 PERMISSION_DENIED Error (API Key Issue)
+
+**Problem:** Getting error: `403 PERMISSION_DENIED. Your API key was reported as leaked`
+
+**Solution:**
+1. Get a new API key from https://makersuite.google.com/app/apikey
+2. Set the environment variable:
+   - **Local development:** Create `backend/.env` file and add `GEMINI_API_KEY=your_new_key`
+   - **Render deployment:** Dashboard → Environment → Add/Update `GEMINI_API_KEY`
+3. Restart your backend server
+4. **Important:** Never commit your `.env` file or share your API key publicly
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed troubleshooting steps.
+
+### 405 Error on File Upload
 
 **Problem:** Getting "405 Method Not Allowed" when uploading CSV files
 

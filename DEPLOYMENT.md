@@ -83,6 +83,42 @@ The Vite dev server (port 5173) will proxy `/api/*` requests to the backend (por
 
 ## Troubleshooting
 
+### 403 PERMISSION_DENIED Error (Google Gemini API)
+
+**Symptom:** Getting error like:
+```
+403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'Your API key was reported as leaked. Please use another API key.', 'status': 'PERMISSION_DENIED'}}
+```
+
+**Common Causes:**
+
+1. **GEMINI_API_KEY environment variable not set**
+   - **Fix:** Set the `GEMINI_API_KEY` environment variable in your deployment platform
+   - **Render:** Go to your service → Environment → Add `GEMINI_API_KEY`
+   - **Local:** Create `backend/.env` file with `GEMINI_API_KEY=your_api_key_here`
+
+2. **API key was leaked and disabled by Google**
+   - **Fix:** Get a new API key from https://makersuite.google.com/app/apikey
+   - **Important:** Never commit API keys to Git. They are excluded by `.gitignore`
+   - Delete the old leaked key from Google Cloud Console
+
+3. **Using an invalid or expired API key**
+   - **Fix:** Verify your API key is still valid in Google Cloud Console
+   - Generate a new key if needed
+
+4. **API key has insufficient permissions**
+   - **Fix:** Ensure the API key has permission to use Gemini API
+   - Check quota limits in Google Cloud Console
+
+**How to get a new API key:**
+1. Go to https://makersuite.google.com/app/apikey
+2. Click "Create API Key"
+3. Copy the key (starts with `AI...`)
+4. Set it in your environment:
+   - **Render:** Dashboard → Environment → `GEMINI_API_KEY`
+   - **Local:** Add to `backend/.env` file
+   - **Never** commit the `.env` file to Git
+
 ### 405 Error on File Upload
 
 **Symptom:** Getting "405 Method Not Allowed" when trying to upload CSV files
