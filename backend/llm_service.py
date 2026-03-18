@@ -86,36 +86,65 @@ parts-of-whole with <=6 categories -> pie/donut; if >6 use sorted bar
 
 distribution -> histogram or boxplot
 
+
+# Comma-separated model list allows automatic fallback on quota/rate errors.
+MODEL_CANDIDATES = [
+    m.strip()
+    for m in os.environ.get("GEMINI_MODELS", "gemini-2.5-flash,gemini-2.0-flash-lite").split(",")
+    if m.strip()
+]
+
+ENABLE_LLM_INSIGHTS = os.environ.get("ENABLE_LLM_INSIGHTS", "false").strip().lower() in {"1", "true", "yes", "on"}
 geographic (lat/lon or region code) -> choropleth if mapping fields exist
 
 multi-series/time + stacking candidate -> stacked_bar or combo
 Document why you chose the chart in description.
 
 
+def _generate_content_with_fallback(prompt: str, temperature: float):
+    """Try multiple Gemini models to survive free-tier quota/rate limits."""
+    last_error = None
 
-5. Top-K and annotations: When the user asks to "highlight top N," include an annotation mechanism: either computed column is_top in SQL or an annotations note describing how to compute/top items.
+    for model_name in MODEL_CANDIDATES:
+        try:
+            return client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=temperature,
+                ),
+            )
+        except Exception as e:
+            last_error = e
+            error_msg = str(e)
+            # Keep trying model fallback for quota/rate related failures.
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                continue
+            # For auth issues, fail immediately with a clear message.
+            if "403" in error_msg or "PERMISSION_DENIED" in error_msg:
+                raise ValueError(
+                    "API key authentication failed. Your Google Gemini API key may be invalid, "
+                    "expired, or reported as leaked. Please check your GEMINI_API_KEY environment variable "
+                    "and get a new API key from: https://makersuite.google.com/app/apikey"
+                ) from e
+            raise
+
+    # If all fallbacks were exhausted, surface a concise and actionable quota message.
+    raise RuntimeError(
+        "Gemini API quota exceeded on all configured models. "
+        "Please wait and retry, switch to a paid plan, or set GEMINI_MODELS to include available models."
+    ) from last_error
 
 
-6. Confidence & hallucination detection: Set confidence in [0.0,1.0]. If your plan references any column not present in {{SCHEMA}}, set confidence <= 0.25, sql: null, and add a warning naming the missing column and suggested alternatives. Do not attempt to "guess" missing columns.
 
 
-7. Dry-run sample: If you return sql, the orchestrator will perform a safe dry-run LIMIT 5 to collect source_rows_sample. Prepare SQL to be safe for that operation. If dry-run would return zero rows for a reasonable date range implied by the request, include a warning.
-
-
-8. Follow-up friendliness: Provide follow_up_suggestions - 3 concise, actionable next queries the user can ask (e.g., "filter to East Coast", "show weekly instead of monthly"). Set can_follow_up: true unless the query is impossible with given data.
-
-
-9. Aggregation & granularity: When user requests a period (e.g., "Q3"), convert to param names (:start_date,:end_date) and include them in params. Do not hardcode absolute dates unless user specified exact dates.
-
-
-10. Multiple charts: Limit charts array to 1-4 charts (KPI + 1-3 visualizations). Prefer a short summary KPI card when the user asks for totals or highlights.
-
-
-11. Error messages: If the user request is ambiguous (e.g., "sales" but there is revenue not sales), pick the best match but add a warning naming the substitution and set confidence accordingly (0.4-0.7 depending on closeness). If truly ambiguous, set confidence < 0.4, sql: null, and add a clarifying suggestion in follow_up_suggestions.
-
+    response = _generate_content_with_fallback(prompt, temperature=0.2)
 
 12. Privacy & safety: Never output secrets, API keys, or PII in any field. Keep notes and warnings user-friendly.
 
+    if not ENABLE_LLM_INSIGHTS:
+        return []
 
 
 --- CHART_TYPE ALLOWED VALUES (use exactly) --- line, area, bar, stacked_bar, pie, donut, treemap, table, histogram, boxplot, choropleth, combo
@@ -130,14 +159,7 @@ def generate_dashboard_spec(schema: str, sample_rows: str, user_request: str) ->
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.2,
-            ),
-        )
-    except Exception as e:
-        # Check if it's a permission error
-        error_msg = str(e)
-        if "403" in error_msg or "PERMISSION_DENIED" in error_msg:
-            raise ValueError(
+        response = _generate_content_with_fallback(prompt, temperature=0.3)
                 "API key authentication failed. Your Google Gemini API key may be invalid, "
                 "expired, or reported as leaked. Please check your GEMINI_API_KEY environment variable "
                 "and get a new API key from: https://makersuite.google.com/app/apikey"
