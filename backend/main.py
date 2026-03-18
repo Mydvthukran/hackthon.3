@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from llm_service import generate_dashboard_spec
+from llm_service import generate_dashboard_spec, generate_data_insights
 from data_service import DataService
 
 app = FastAPI(title="Conversational BI API")
@@ -127,6 +127,25 @@ async def analyze_query(req: QueryRequest):
                         kpi["value"] = list(first_row.values())[0] if first_row else None
                 except Exception as e:
                     kpi["error"] = str(e)
+
+        # --- NEW CODE: GENERATE INSIGHTS FROM THE EXECUTED DATA ---
+        extracted_data_for_insights = {}
+
+        # Grab a small sample of the chart data
+        for chart in spec.get("charts", []):
+            if "chart_data" in chart and chart["chart_data"]:
+                extracted_data_for_insights[chart.get("title", "Chart")] = chart["chart_data"][:10]
+
+        # Grab the KPI values
+        for kpi in spec.get("kpis", []):
+            if "value" in kpi:
+                extracted_data_for_insights[kpi.get("label", "KPI")] = kpi["value"]
+
+        # Call the second LLM pass if we successfully retrieved data
+        if extracted_data_for_insights:
+            spec["insights"] = generate_data_insights(req.query, extracted_data_for_insights)
+        else:
+            spec["insights"] = []
 
         return {"status": "success", "data": spec}
     except Exception as e:
