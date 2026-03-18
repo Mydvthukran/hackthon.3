@@ -1,3 +1,5 @@
+import html2canvas from 'html2canvas';
+
 // Export utilities for dashboard
 export const exportDashboardAsPNG = async (elementId: string, filename: string = 'dashboard.png') => {
   const element = document.getElementById(elementId);
@@ -7,21 +9,12 @@ export const exportDashboardAsPNG = async (elementId: string, filename: string =
   }
 
   try {
-    // Use html2canvas-like approach but manually
-    // Create a canvas and draw the element
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Get element dimensions
-    const rect = element.getBoundingClientRect();
-    canvas.width = rect.width * 2; // 2x for better quality
-    canvas.height = rect.height * 2;
-    ctx.scale(2, 2);
-
-    // Draw white background
-    ctx.fillStyle = '#0a0e14';
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    // Render the element into a canvas using html2canvas
+    const canvas = await html2canvas(element, {
+      backgroundColor: '#0a0e14',
+      scale: 2,
+      useCORS: true,
+    });
 
     // Download the canvas
     const link = document.createElement('a');
