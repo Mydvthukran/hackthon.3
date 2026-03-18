@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area,
+  LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, ScatterChart, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
 import { Maximize2, X, AlertTriangle, BarChart2, Download } from 'lucide-react';
@@ -274,6 +274,90 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>
+      );
+    }
+
+    case 'scatter': {
+      const xCol = visual_encoding?.x || Object.keys(data[0])[0];
+      const yCol = visual_encoding?.y || Object.keys(data[0])[1];
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey={xCol} {...axisStyle} type="number" />
+            <YAxis dataKey={yCol} {...axisStyle} type="number" />
+            <Tooltip {...tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Scatter name={chart.title} data={data} fill={COLORS[0]} />
+          </ScatterChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    case 'stacked_bar': {
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis dataKey={xKey} {...axisStyle} />
+            <YAxis {...axisStyle} />
+            <Tooltip {...tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {yKeys.map((k, i) => (
+              <Bar key={k} dataKey={k} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === yKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    case 'table': {
+      const columns = Object.keys(data[0]);
+      return (
+        <div style={{ overflowX: 'auto', width: '100%', height: '100%' }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: '12px',
+            color: 'var(--text-primary)'
+          }}>
+            <thead>
+              <tr>
+                {columns.map((col, i) => (
+                  <th key={i} style={{
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    borderBottom: '1px solid var(--panel-border)',
+                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--panel-bg)',
+                    backdropFilter: 'var(--glass-blur)'
+                  }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((row, i) => (
+                <tr key={i} style={{
+                  borderBottom: '1px solid rgba(255,255,255,0.03)'
+                }}>
+                  {columns.map((col, j) => (
+                    <td key={j} style={{
+                      padding: '10px 12px',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      {String(row[col] ?? '')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
