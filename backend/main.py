@@ -106,7 +106,14 @@ async def analyze_query(req: QueryRequest):
         sample_rows = data_service.get_sample_rows()
 
         # 2. Get LLM Spec
-        spec = generate_dashboard_spec(schema, sample_rows, req.query)
+        try:
+            spec = generate_dashboard_spec(schema, sample_rows, req.query)
+        except ValueError as e:
+            # Auth/key related failures from LLM service.
+            raise HTTPException(status_code=401, detail=str(e)) from e
+        except RuntimeError as e:
+            # Quota/rate related failures from LLM service.
+            raise HTTPException(status_code=429, detail=str(e)) from e
 
         # 3. Enhance with actual data points
         for chart in spec.get("charts", []):
@@ -148,6 +155,8 @@ async def analyze_query(req: QueryRequest):
             spec["insights"] = []
 
         return {"status": "success", "data": spec}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Backend error: {e}")
         import traceback
