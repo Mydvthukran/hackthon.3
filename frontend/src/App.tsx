@@ -17,8 +17,9 @@ interface UploadedFile {
   session_id: string;
 }
 
-const API_UPLOAD = '/api/upload';
-const API_QUERY = '/api/query';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+const API_UPLOAD = `${API_BASE}/api/upload`;
+const API_QUERY = `${API_BASE}/api/query`;
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
