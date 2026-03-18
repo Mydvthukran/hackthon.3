@@ -4,7 +4,7 @@ export interface ChartConfig {
   title: string;
   description: string;
   sql: string | null;
-  dataframe_ops: any;
+  dataframe_ops: Record<string, unknown> | null;
   params: Record<string, string | number>;
   columns: string[];
   visual_encoding: {
@@ -18,7 +18,7 @@ export interface ChartConfig {
   confidence: number;
   notes: string;
   warnings: string[];
-  chart_data: any[];
+  chart_data: Record<string, unknown>[];
   error?: string;
 }
 
@@ -26,7 +26,7 @@ export interface KPIConfig {
   id: string;
   label: string;
   value_sql: string;
-  value: any;
+  value: string | number | boolean | null;
   confidence: number;
   error?: string;
 }
@@ -37,7 +37,7 @@ export interface DashboardSpec {
   charts: ChartConfig[];
   kpis: KPIConfig[];
   warnings: string[];
-  source_rows_sample: any[];
+  source_rows_sample: Record<string, unknown>[];
   can_follow_up: boolean;
   follow_up_suggestions: string[];
 }

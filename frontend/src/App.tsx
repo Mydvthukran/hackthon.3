@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Bot, Sparkles, Send, Upload, FileText, X } from 'lucide-react';
+import { Bot, Sparkles, Send, Upload, FileText, X, Trash2, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import type { DashboardSpec } from './types';
 import './index.css';
@@ -8,6 +8,7 @@ import './index.css';
 interface Message {
   role: 'user' | 'ai';
   content: string;
+  timestamp: Date;
 }
 
 interface UploadedFile {
@@ -17,23 +18,59 @@ interface UploadedFile {
   session_id: string;
 }
 
-const API_UPLOAD = '/api/upload';
-const API_QUERY = '/api/query';
+interface Toast {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+const API_UPLOAD = `${API_BASE}/api/upload`;
+const API_QUERY  = `${API_BASE}/api/query`;
+
+let toastCounter = 0;
+
+function newToastId(): number {
+  // Use timestamp + counter for unique, stable IDs
+  return Date.now() * 1000 + (++toastCounter % 1000);
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'ai', content: 'Hello! I am your BI Analytics Assistant. Upload a CSV file to get started, or ask about the default demo dataset.' }
+    {
+      role: 'ai',
+      content: 'Hello! I\'m your BI Analytics Assistant. Upload a CSV file to analyze your own data, or ask a question about the built-in demo dataset.',
+      timestamp: new Date(),
+    },
   ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [currentSpec, setCurrentSpec] = useState<DashboardSpec | null>(null);
+  const [input, setInput]               = useState('');
+  const [isLoading, setIsLoading]       = useState(false);
+  const [isUploading, setIsUploading]   = useState(false);
+  const [currentSpec, setCurrentSpec]   = useState<DashboardSpec | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toasts, setToasts]             = useState<Toast[]>([]);
+
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  const showToast = useCallback((type: Toast['type'], message: string) => {
+    const id = newToastId();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  }, []);
 
   const handleUpload = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      setMessages(prev => [...prev, { role: 'ai', content: 'Please upload a CSV file (.csv).' }]);
+      showToast('error', 'Only CSV files are supported.');
       return;
     }
 
@@ -58,13 +95,16 @@ function App() {
           {
             role: 'ai',
             content: `Loaded ${data.filename} — ${data.rows.toLocaleString()} rows, ${data.columns.length} columns.\n\nColumns: ${data.columns.join(', ')}\n\nWhat insights would you like to explore?`,
+            timestamp: new Date(),
           },
         ]);
+        showToast('success', `${data.filename} uploaded successfully.`);
       }
     } catch (error: unknown) {
-      const axiosErr = error as import("axios").AxiosError;
+      const axiosErr = error as import('axios').AxiosError;
       const errMsg = (axiosErr.response?.data as { detail?: string })?.detail || axiosErr.message || 'Upload failed.';
-      setMessages(prev => [...prev, { role: 'ai', content: `Upload error: ${errMsg}` }]);
+      showToast('error', `Upload failed: ${errMsg}`);
+      setMessages(prev => [...prev, { role: 'ai', content: `Upload error: ${errMsg}`, timestamp: new Date() }]);
     } finally {
       setIsUploading(false);
     }
@@ -82,23 +122,40 @@ function App() {
     if (file) handleUpload(file);
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
   const clearUpload = () => {
     setUploadedFile(null);
     setCurrentSpec(null);
     setMessages([
-      { role: 'ai', content: 'Upload cleared. Using the default demo dataset. Upload a CSV to analyze your own data.' },
+      {
+        role: 'ai',
+        content: 'File removed. Using the default demo dataset. Upload a CSV to analyze your own data.',
+        timestamp: new Date(),
+      },
     ]);
+    showToast('info', 'Switched back to demo dataset.');
+  };
+
+  const clearChat = () => {
+    setMessages([
+      {
+        role: 'ai',
+        content: uploadedFile
+          ? `Chat cleared. I still have ${uploadedFile.filename} loaded. What would you like to explore?`
+          : 'Chat cleared. Ask anything about the demo dataset or upload your own CSV.',
+        timestamp: new Date(),
+      },
+    ]);
+    setCurrentSpec(null);
+    showToast('info', 'Chat history cleared.');
   };
 
   const handleSend = async (query: string) => {
     if (!query.trim()) return;
 
-    const newMessages = [...messages, { role: 'user', content: query } as Message];
-    setMessages(newMessages);
+    const newMsg: Message = { role: 'user', content: query, timestamp: new Date() };
+    setMessages(prev => [...prev, newMsg]);
     setInput('');
     setIsLoading(true);
 
@@ -111,135 +168,195 @@ function App() {
 
       if (data.status === 'success') {
         setCurrentSpec(data.data);
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          content: 'Here is your dashboard based on the request.',
-        }]);
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'ai',
+            content: 'Here is your dashboard. You can click any suggestion below to refine it.',
+            timestamp: new Date(),
+          },
+        ]);
       } else {
-        setMessages(prev => [...prev, { role: 'ai', content: 'Unexpected response format from the server.' }]);
+        setMessages(prev => [
+          ...prev,
+          { role: 'ai', content: 'Unexpected response format from the server.', timestamp: new Date() },
+        ]);
       }
     } catch (error: unknown) {
       console.error(error);
-      const axiosErr = error as import("axios").AxiosError;
-      const errMsg = (axiosErr.response?.data as { detail?: string })?.detail || axiosErr.message || 'Unknown error occurred.';
-      setMessages(prev => [...prev, { role: 'ai', content: `Sorry, I encountered an error: ${errMsg}` }]);
+      const axiosErr = error as import('axios').AxiosError;
+      const errMsg =
+        (axiosErr.response?.data as { detail?: string })?.detail ||
+        axiosErr.message ||
+        'Unknown error occurred.';
+      setMessages(prev => [
+        ...prev,
+        { role: 'ai', content: `Sorry, I encountered an error: ${errMsg}`, timestamp: new Date() },
+      ]);
+      showToast('error', `Query failed: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const toastIcon = (type: Toast['type']) => {
+    if (type === 'success') return <CheckCircle size={16} className="toast-icon-success" />;
+    if (type === 'error')   return <AlertCircle size={16} className="toast-icon-error" />;
+    return <Info size={16} className="toast-icon-info" />;
+  };
+
   return (
-    <div className="app-container">
-      {/* Sidebar for Chat */}
-      <div className="glass-panel sidebar">
-        <div className="app-title">
-          <Sparkles className="text-accent" size={24} color="#58a6ff" />
-          <span>Instant BI Assistant</span>
+    <>
+      {/* Toast notifications */}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type}`}>
+            {toastIcon(t.type)}
+            <span className="toast-message">{t.message}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="app-container">
+        {/* Sidebar */}
+        <div className="glass-panel sidebar">
+          {/* Header */}
+          <div className="sidebar-header">
+            <div className="app-title">
+              <div className="app-title-icon">
+                <Sparkles size={16} color="#fff" />
+              </div>
+              <span>Instant BI</span>
+            </div>
+            <div className="header-actions">
+              <button
+                className="icon-btn danger"
+                onClick={clearChat}
+                title="Clear chat history"
+                disabled={messages.length <= 1}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Upload zone / file info */}
+          {uploadedFile ? (
+            <div className="file-info-bar">
+              <FileText size={15} color="var(--accent)" />
+              <span className="file-info-name" title={uploadedFile.filename}>{uploadedFile.filename}</span>
+              <span className="file-info-meta">{uploadedFile.rows.toLocaleString()} rows</span>
+              <button className="file-clear-btn" onClick={clearUpload} title="Remove file">
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <div
+              className={`upload-zone${isUploading ? ' uploading' : ''}`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+              {isUploading ? (
+                <span className="upload-zone-text">Uploading…</span>
+              ) : (
+                <>
+                  <Upload size={16} color="var(--accent)" />
+                  <span className="upload-zone-text">Drop CSV here or <u>browse</u></span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Chat history */}
+          <div className="chat-history">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`chat-message ${msg.role}`}>
+                <div className={`chat-bubble ${msg.role}`}>
+                  {msg.content}
+                </div>
+                <span className="chat-message-meta">{formatTime(msg.timestamp)}</span>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="chat-message ai">
+                <div className="chat-bubble ai loader">
+                  <div className="dot" />
+                  <div className="dot" />
+                  <div className="dot" />
+                </div>
+              </div>
+            )}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Follow-up suggestions */}
+          {currentSpec?.follow_up_suggestions && currentSpec.follow_up_suggestions.length > 0 && (
+            <div className="suggestions-container">
+              <span className="suggestions-label">Suggestions</span>
+              {currentSpec.follow_up_suggestions.map((sug, idx) => (
+                <div
+                  key={idx}
+                  className="suggestion-pill"
+                  onClick={() => handleSend(sug)}
+                >
+                  <Sparkles size={10} />
+                  {sug}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input area */}
+          <div className="chat-input-wrapper">
+            <div className="chat-input-container">
+              <input
+                type="text"
+                className="chat-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend(input)}
+                placeholder={uploadedFile ? `Ask about ${uploadedFile.filename}…` : 'Ask for an insight…'}
+                disabled={isLoading}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={() => handleSend(input)}
+                disabled={isLoading || !input.trim()}
+                title="Send"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* CSV Upload Zone */}
-        {uploadedFile ? (
-          <div className="file-info-bar">
-            <FileText size={16} color="#58a6ff" />
-            <span className="file-info-name" title={uploadedFile.filename}>{uploadedFile.filename}</span>
-            <span className="file-info-meta">{uploadedFile.rows.toLocaleString()} rows</span>
-            <button className="file-clear-btn" onClick={clearUpload} title="Remove file">
-              <X size={14} />
-            </button>
-          </div>
-        ) : (
-          <div
-            className={`upload-zone${isUploading ? ' uploading' : ''}`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-            {isUploading ? (
-              <span className="upload-zone-text">Uploading...</span>
-            ) : (
-              <>
-                <Upload size={20} color="#58a6ff" />
-                <span className="upload-zone-text">Drop CSV here or <u>browse</u></span>
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="chat-history">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`chat-bubble ${msg.role}`}>
-              {msg.content}
-            </div>
-          ))}
-          {isLoading && (
-            <div className="chat-bubble ai loader">
-              <div className="dot"></div>
-              <div className="dot"></div>
-              <div className="dot"></div>
+        {/* Main workspace */}
+        <div className="main-content">
+          {currentSpec ? (
+            <Dashboard spec={currentSpec} />
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <Bot size={72} />
+              </div>
+              <h2>No Dashboard Yet</h2>
+              <p>Upload your own CSV or type a query in the chat to generate an AI-powered dashboard instantly.</p>
+              {!uploadedFile && (
+                <span className="empty-hint">Try: "Show me monthly online orders vs store visits."</span>
+              )}
             </div>
           )}
         </div>
-
-        {/* Follow up suggestions */}
-        {currentSpec?.follow_up_suggestions && (
-          <div className="suggestions-container">
-            {currentSpec.follow_up_suggestions.map((sug, idx) => (
-              <div
-                key={idx}
-                className="suggestion-pill"
-                onClick={() => handleSend(sug)}
-              >
-                {sug}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
-          <div className="chat-input-container">
-            <input
-              type="text"
-              className="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-              placeholder={uploadedFile ? `Ask about ${uploadedFile.filename}...` : 'Ask for an insight...'}
-              disabled={isLoading}
-            />
-            <button
-              className="chat-send-btn"
-              onClick={() => handleSend(input)}
-              disabled={isLoading || !input.trim()}
-            >
-              <Send size={18} />
-            </button>
-          </div>
-        </div>
       </div>
-
-      {/* Main Workspace for Dashboard */}
-      <div className="main-content">
-        {currentSpec ? (
-          <Dashboard spec={currentSpec} />
-        ) : (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', flexDirection: 'column', gap: '16px' }}>
-            <Bot size={64} opacity={0.2} />
-            <h2>No Dashboard Active</h2>
-            <p>Upload your own CSV or type a query to generate a dashboard instantly.</p>
-            {!uploadedFile && (
-              <p style={{ fontSize: '12px', opacity: 0.7 }}>Demo: "Show me monthly online orders vs store visits."</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 
