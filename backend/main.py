@@ -23,7 +23,8 @@ app.add_middleware(
 )
 
 # Default DataService (hardcoded CSV shipped with the app)
-csv_path = os.path.join(os.path.dirname(__file__), "data", "customer_behaviour.csv")
+# Use the Database folder which contains the actual customer behaviour data
+csv_path = os.path.join(os.path.dirname(__file__), "..", "Database", "Customer_Behaviour_Online_vs_Offline.csv")
 default_data_service = DataService(csv_path)
 
 # In-memory session store: session_id -> DataService
@@ -48,6 +49,22 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
 
     content = await file.read()
+
+    # Check for common non-CSV formats that might have .csv extension
+    # Safari webarchive files start with 'bplist'
+    if content.startswith(b'bplist'):
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file appears to be a Safari webarchive, not a CSV file. Please download the actual CSV file instead of saving it from the browser preview."
+        )
+
+    # Check for HTML content (some browsers save CSV previews as HTML)
+    if content.startswith(b'<!DOCTYPE') or content.startswith(b'<html'):
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file appears to be an HTML file, not a CSV file. Please ensure you're uploading a proper CSV file."
+        )
+
     try:
         df = pd.read_csv(io.BytesIO(content))
     except Exception as e:
