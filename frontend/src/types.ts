@@ -37,6 +37,7 @@ export interface DashboardSpec {
   charts: ChartConfig[];
   kpis: KPIConfig[];
   warnings: string[];
+  insights?: string[];
   source_rows_sample: Record<string, unknown>[];
   can_follow_up: boolean;
   follow_up_suggestions: string[];

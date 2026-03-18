@@ -163,7 +163,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
         </div>
       )}
 
-      {/* AI Insights Summary */}
+      {/* Backend-generated AI Insights */}
+      {spec.insights && spec.insights.length > 0 && (
+        <div className="glass-panel insights-panel" style={{
+            marginBottom: '20px',
+            padding: '16px',
+            background: 'rgba(210, 153, 34, 0.08)',
+            border: '1px solid rgba(210, 153, 34, 0.3)'
+        }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#d29922', fontSize: '16px', margin: 0 }}>
+            <Lightbulb size={18} />
+            AI Data Insights
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: '24px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {spec.insights.map((insight, idx) => (
+              <li key={idx} style={{ lineHeight: '1.5' }}>{insight}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Frontend-generated Data Insights Summary */}
       {insights.length > 0 && (
         <div className="insights-row">
           {insights.map((insight, idx) => {
