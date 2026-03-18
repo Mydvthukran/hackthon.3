@@ -114,7 +114,7 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
         </ResponsiveContainer>
       );
     case 'pie':
-    case 'donut':
+    case 'donut': {
       const nameKey = visual_encoding?.x || visual_encoding?.color || Object.keys(data[0]).find(k => typeof data[0][k] === 'string') || Object.keys(data[0])[0];
       const valKey = visual_encoding?.y || visual_encoding?.size || Object.keys(data[0]).find(k => typeof data[0][k] === 'number') || Object.keys(data[0])[1];
       return (
@@ -138,6 +138,7 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
           </PieChart>
         </ResponsiveContainer>
       );
+    }
     default:
       return (
         <ResponsiveContainer width="100%" height="100%">
