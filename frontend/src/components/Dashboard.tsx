@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, ScatterChart, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
@@ -47,6 +47,25 @@ function exportDashboardCSV(spec: DashboardSpec) {
 // ── Dashboard ────────────────────────────────────────────────────────
 export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
   const [fullscreenChart, setFullscreenChart] = useState<ChartConfig | null>(null);
+  const [chartSearch, setChartSearch] = useState('');
+  const [activeChartType, setActiveChartType] = useState<string>('all');
+
+  const chartTypes = useMemo(
+    () => Array.from(new Set((spec.charts ?? []).map(c => c.chart_type))),
+    [spec.charts]
+  );
+
+  const visibleCharts = useMemo(() => {
+    const q = chartSearch.trim().toLowerCase();
+    return (spec.charts ?? []).filter(chart => {
+      const typeMatch = activeChartType === 'all' || chart.chart_type === activeChartType;
+      const textMatch = !q
+        || chart.title.toLowerCase().includes(q)
+        || chart.description.toLowerCase().includes(q)
+        || chart.chart_type.toLowerCase().includes(q);
+      return typeMatch && textMatch;
+    });
+  }, [spec.charts, chartSearch, activeChartType]);
 
   return (
     <div className="dashboard-container">
@@ -78,7 +97,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
       {spec.kpis && spec.kpis.length > 0 && (
         <div className="kpi-row">
           {spec.kpis.map((kpi: KPIConfig, idx: number) => (
-            <div key={kpi.id || idx} className="glass-panel kpi-card">
+            <div
+              key={kpi.id || idx}
+              className="glass-panel kpi-card"
+              style={{ animationDelay: `${idx * 60}ms` }}
+            >
               <span className="kpi-label">{kpi.label}</span>
               <span className="kpi-value">
                 {kpi.error ? 'Error' : formatKpiValue(kpi.value)}
@@ -94,9 +117,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
         </div>
       )}
 
+      {spec.charts && spec.charts.length > 0 && (
+        <div className="dashboard-controls glass-panel">
+          <div className="dashboard-controls-row">
+            <input
+              className="dashboard-search-input"
+              type="text"
+              placeholder="Search charts by title, description, or type"
+              value={chartSearch}
+              onChange={e => setChartSearch(e.target.value)}
+              aria-label="Search charts"
+            />
+            <span className="dashboard-result-count">
+              {visibleCharts.length} of {spec.charts.length} charts
+            </span>
+          </div>
+          <div className="chart-type-filter-row">
+            <button
+              className={`chart-filter-chip${activeChartType === 'all' ? ' active' : ''}`}
+              onClick={() => setActiveChartType('all')}
+              type="button"
+            >
+              All
+            </button>
+            {chartTypes.map(type => (
+              <button
+                key={type}
+                className={`chart-filter-chip${activeChartType === type ? ' active' : ''}`}
+                onClick={() => setActiveChartType(type)}
+                type="button"
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-grid">
-        {spec.charts && spec.charts.map((chart: ChartConfig, idx: number) => (
-          <div key={chart.id || idx} className="glass-panel chart-card">
+        {visibleCharts.map((chart: ChartConfig, idx: number) => (
+          <div
+            key={chart.id || idx}
+            className="glass-panel chart-card"
+            style={{ animationDelay: `${idx * 70}ms` }}
+          >
             <div className="chart-header">
               <div className="chart-header-left">
                 <h3>{chart.title}</h3>
@@ -134,6 +198,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ spec }) => {
             </div>
           </div>
         ))}
+
+        {visibleCharts.length === 0 && (
+          <div className="glass-panel chart-card chart-empty-filter-state">
+            <div className="chart-no-data">
+              <BarChart2 size={30} opacity={0.2} />
+              No charts match this filter. Try changing type or search terms.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fullscreen chart modal */}
@@ -202,7 +275,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {yKeys.map((k, i) => (
               <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]}
-                strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 0 }}
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -228,7 +302,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             {yKeys.map((k, i) => (
               <Area key={k} type="monotone" dataKey={k}
                 stroke={COLORS[i % COLORS.length]} strokeWidth={2}
-                fill={`url(#areaGrad-${i})`} />
+                fill={`url(#areaGrad-${i})`}
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
             ))}
           </AreaChart>
         </ResponsiveContainer>
@@ -245,7 +320,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <Tooltip {...tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {yKeys.map((k, i) => (
-              <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={48} />
+              <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={48}
+                isAnimationActive animationDuration={850} animationEasing="ease-out" />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -265,7 +341,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
           <PieChart>
             <Pie data={data} innerRadius={innerRadius} outerRadius={90}
               paddingAngle={chart_type === 'donut' ? 4 : 0}
-              dataKey={valKey} nameKey={nameKey} labelLine={false}>
+              dataKey={valKey} nameKey={nameKey} labelLine={false}
+              isAnimationActive animationDuration={900} animationEasing="ease-out">
               {data.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="transparent" />
               ))}
@@ -288,7 +365,7 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <YAxis dataKey={yCol} {...axisStyle} type="number" />
             <Tooltip {...tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Scatter name={chart.title} data={data} fill={COLORS[0]} />
+            <Scatter name={chart.title} data={data} fill={COLORS[0]} isAnimationActive animationDuration={850} />
           </ScatterChart>
         </ResponsiveContainer>
       );
@@ -304,7 +381,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <Tooltip {...tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {yKeys.map((k, i) => (
-              <Bar key={k} dataKey={k} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === yKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+              <Bar key={k} dataKey={k} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === yKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                isAnimationActive animationDuration={850} animationEasing="ease-out" />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -371,7 +449,8 @@ const ChartRenderer: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
             <Tooltip {...tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {yKeys.map((k, i) => (
-              <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={48} />
+              <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={48}
+                isAnimationActive animationDuration={850} animationEasing="ease-out" />
             ))}
           </BarChart>
         </ResponsiveContainer>

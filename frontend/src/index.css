@@ -311,6 +311,7 @@ body::before {
   font-size: 13.5px;
   white-space: pre-wrap;
   word-break: break-word;
+  transition: transform var(--transition), border-color var(--transition), background var(--transition);
 }
 
 .chat-bubble.user {
@@ -325,6 +326,19 @@ body::before {
   border: 1px solid var(--panel-border);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
+}
+
+.chat-message:hover .chat-bubble {
+  transform: translateY(-1px);
+}
+
+.chat-message.ai:hover .chat-bubble {
+  border-color: rgba(79, 158, 248, 0.28);
+  background: rgba(79, 158, 248, 0.08);
+}
+
+.chat-message.user:hover .chat-bubble {
+  border-color: rgba(79, 158, 248, 0.45);
 }
 
 /* ── Typing loader ──────────────────────────────── */
@@ -381,6 +395,17 @@ body::before {
   display: flex;
   align-items: center;
   gap: 5px;
+  position: relative;
+  overflow: hidden;
+}
+
+.suggestion-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: translateX(-130%);
+  transition: transform 420ms ease;
 }
 
 .suggestion-pill:hover {
@@ -388,6 +413,10 @@ body::before {
   color: var(--accent);
   border-color: rgba(79, 158, 248, 0.3);
   transform: translateY(-1px);
+}
+
+.suggestion-pill:hover::after {
+  transform: translateX(130%);
 }
 
 /* ── Chat input ─────────────────────────────────── */
@@ -592,6 +621,82 @@ body::before {
   flex-shrink: 0;
 }
 
+.dashboard-controls {
+  padding: 14px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.35s ease;
+}
+
+.dashboard-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-search-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 9px 11px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  min-width: 0;
+}
+
+.dashboard-search-input:focus {
+  outline: none;
+  border-color: rgba(79, 158, 248, 0.5);
+  box-shadow: 0 0 0 3px rgba(79, 158, 248, 0.12);
+}
+
+.dashboard-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.dashboard-result-count {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chart-type-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-filter-chip {
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.chart-filter-chip:hover {
+  color: var(--text-primary);
+  border-color: rgba(79, 158, 248, 0.4);
+  background: rgba(79, 158, 248, 0.1);
+}
+
+.chart-filter-chip.active {
+  color: #dbeeff;
+  background: linear-gradient(135deg, rgba(79, 158, 248, 0.35), rgba(79, 158, 248, 0.15));
+  border-color: rgba(79, 158, 248, 0.5);
+  box-shadow: 0 0 0 1px rgba(79, 158, 248, 0.2) inset;
+}
+
 .dashboard-warnings {
   display: flex;
   flex-wrap: wrap;
@@ -624,7 +729,7 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  animation: fadeIn 0.4s ease;
+  animation: riseIn 0.45s ease both;
   position: relative;
   overflow: hidden;
   transition: transform var(--transition), box-shadow var(--transition);
@@ -642,6 +747,22 @@ body::before {
 .kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(79, 158, 248, 0.15);
+}
+
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 80%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  transform: skewX(-20deg);
+  transition: left 550ms ease;
+}
+
+.kpi-card:hover::after {
+  left: 140%;
 }
 
 .kpi-label {
@@ -686,7 +807,7 @@ body::before {
   flex-direction: column;
   gap: 14px;
   min-height: 380px;
-  animation: fadeIn 0.5s ease;
+  animation: riseIn 0.5s ease both;
   transition: transform var(--transition), box-shadow var(--transition);
   position: relative;
   overflow: hidden;
@@ -695,6 +816,25 @@ body::before {
 .chart-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--panel-border-hover);
+}
+
+.chart-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(130deg, rgba(79, 158, 248, 0.16), transparent 35%, rgba(163, 113, 247, 0.18));
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+}
+
+.chart-card:hover::before {
+  opacity: 1;
+}
+
+.chart-empty-filter-state {
+  min-height: 220px;
 }
 
 .chart-header {
@@ -836,6 +976,11 @@ body::before {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* ── Sidebar Toggle Button ──────────────────────── */
 .sidebar-toggle {
   position: fixed;
@@ -973,6 +1118,16 @@ body::before {
     gap: 14px;
   }
 
+  .dashboard-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .dashboard-result-count {
+    align-self: flex-start;
+  }
+
   .kpi-row {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
@@ -1002,6 +1157,17 @@ body::before {
 
   .upload-zone-text {
     font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

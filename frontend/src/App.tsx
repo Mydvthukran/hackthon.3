@@ -30,6 +30,13 @@ const API_QUERY  = `${API_BASE}/api/query`;
 
 let toastCounter = 0;
 
+const STARTER_PROMPTS = [
+  'Compare online vs offline spending by month',
+  'Show top 5 customer segments by revenue',
+  'Plot order count trend by channel',
+  'Which age group has the highest average basket value?',
+];
+
 function newToastId(): number {
   // Use timestamp + counter for unique, stable IDs
   return Date.now() * 1000 + (++toastCounter % 1000);
@@ -338,6 +345,23 @@ function App() {
             )}
             <div ref={chatBottomRef} />
           </div>
+
+          {!currentSpec && !isLoading && (
+            <div className="suggestions-container">
+              <span className="suggestions-label">Quick Start</span>
+              {STARTER_PROMPTS.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  className="suggestion-pill"
+                  onClick={() => handleSend(prompt)}
+                  type="button"
+                >
+                  <Sparkles size={10} />
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Follow-up suggestions */}
           {currentSpec?.follow_up_suggestions && currentSpec.follow_up_suggestions.length > 0 && (

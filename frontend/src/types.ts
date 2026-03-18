@@ -13,7 +13,7 @@ export interface ChartConfig {
     color?: string;
     size?: string;
     facet?: string;
-  };
+  }; 
   annotations: string[];
   confidence: number;
   notes: string;
