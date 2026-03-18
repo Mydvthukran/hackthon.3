@@ -157,3 +157,38 @@ def generate_dashboard_spec(schema: str, sample_rows: str, user_request: str) ->
         print(f"Error parsing JSON from LLM: {e}")
         print("Raw response:", response.text)
         raise e
+
+def generate_data_insights(user_request: str, data_results: dict) -> list:
+    """Takes the actual queried data and asks the LLM to extract text insights."""
+    # Convert data to a short string (limit size to prevent massive token usage)
+    data_str = json.dumps(data_results, default=str)[:8000]
+
+    prompt = f"""You are a Data Analyst.
+The user asked: "{user_request}"
+Here is a sample of the data returned from the database queries:
+{data_str}
+
+Provide 2-3 brief, actionable insights summarizing the key trends, anomalies, or findings in this data.
+Return ONLY a JSON list of strings.
+Example: ["Sales grew by 20% in Q3.", "The most popular product category is Electronics."]
+"""
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
+            ),
+        )
+
+        raw_text = response.text
+        if raw_text.startswith("```json"):
+            raw_text = raw_text.split("```json", 1)[1].rsplit("```", 1)[0].strip()
+        elif raw_text.startswith("```"):
+            raw_text = raw_text.split("```", 1)[1].rsplit("```", 1)[0].strip()
+
+        return json.loads(raw_text)
+    except Exception as e:
+        print(f"Error generating insights: {e}")
+        return []
