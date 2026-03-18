@@ -1,6 +1,6 @@
 export interface ChartConfig {
   id: string;
-  chart_type: "line" | "bar" | "stacked_bar" | "pie" | "donut" | "area" | "treemap" | "table" | "histogram" | "boxplot" | "choropleth" | "combo";
+  chart_type: "line" | "bar" | "stacked_bar" | "scatter" | "pie" | "donut" | "area" | "treemap" | "table" | "histogram" | "boxplot" | "choropleth" | "combo";
   title: string;
   description: string;
   sql: string | null;

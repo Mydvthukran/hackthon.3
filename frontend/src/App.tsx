@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Bot, Sparkles, Send, Upload, FileText, X, Trash2, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { Bot, Sparkles, Send, Upload, FileText, X, Trash2, CheckCircle, AlertCircle, Info, Menu } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import type { DashboardSpec } from './types';
 import './index.css';
@@ -53,6 +53,8 @@ function App() {
   const [currentSpec, setCurrentSpec]   = useState<DashboardSpec | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [toasts, setToasts]             = useState<Toast[]>([]);
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [loadingStep, setLoadingStep]   = useState<string>('');
 
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,14 @@ function App() {
     setToasts(prev => [...prev, { id, type, message }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
+
+  const toggleSidebar = () => {
+    setSidebarOpen(prev => !prev);
+  };
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
 
   const handleUpload = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.csv')) {
@@ -156,8 +166,11 @@ function App() {
     setMessages(prev => [...prev, newMsg]);
     setInput('');
     setIsLoading(true);
+    setLoadingStep('Analyzing your question...');
 
     try {
+      setTimeout(() => setLoadingStep('Generating dashboard...'), 800);
+
       const response = await axios.post(API_QUERY, {
         query,
         session_id: uploadedFile?.session_id ?? null,
@@ -165,20 +178,26 @@ function App() {
       const data = response.data;
 
       if (data.status === 'success') {
-        setCurrentSpec(data.data);
-        setMessages(prev => [
-          ...prev,
-          {
-            role: 'ai',
-            content: 'Here is your dashboard. You can click any suggestion below to refine it.',
-            timestamp: new Date(),
-          },
-        ]);
+        setLoadingStep('Rendering visualizations...');
+        setTimeout(() => {
+          setCurrentSpec(data.data);
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'ai',
+              content: 'Here is your dashboard. You can click any suggestion below to refine it.',
+              timestamp: new Date(),
+            },
+          ]);
+          setLoadingStep('');
+          closeSidebar();
+        }, 300);
       } else {
         setMessages(prev => [
           ...prev,
           { role: 'ai', content: 'Unexpected response format from the server.', timestamp: new Date() },
         ]);
+        setLoadingStep('');
       }
     } catch (error: unknown) {
       console.error(error);
@@ -192,6 +211,7 @@ function App() {
         { role: 'ai', content: `Sorry, I encountered an error: ${errMsg}`, timestamp: new Date() },
       ]);
       showToast('error', `Query failed: ${errMsg}`);
+      setLoadingStep('');
     } finally {
       setIsLoading(false);
     }
@@ -215,9 +235,25 @@ function App() {
         ))}
       </div>
 
+      {/* Mobile sidebar toggle */}
+      <button
+        className={`sidebar-toggle${sidebarOpen ? ' active' : ''}`}
+        onClick={toggleSidebar}
+        aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Mobile overlay */}
+      <div
+        className={`mobile-overlay${sidebarOpen ? ' visible' : ''}`}
+        onClick={closeSidebar}
+        aria-hidden="true"
+      />
+
       <div className="app-container">
         {/* Sidebar */}
-        <div className="glass-panel sidebar">
+        <div className={`glass-panel sidebar${sidebarOpen ? ' open' : ''}`}>
           {/* Header */}
           <div className="sidebar-header">
             <div className="app-title">
@@ -284,13 +320,21 @@ function App() {
               </div>
             ))}
             {isLoading && (
-              <div className="chat-message ai">
-                <div className="chat-bubble ai loader">
-                  <div className="dot" />
-                  <div className="dot" />
-                  <div className="dot" />
+              <>
+                {loadingStep && (
+                  <div className="loading-progress">
+                    <div className="loading-spinner" />
+                    <span>{loadingStep}</span>
+                  </div>
+                )}
+                <div className="chat-message ai">
+                  <div className="chat-bubble ai loader">
+                    <div className="dot" />
+                    <div className="dot" />
+                    <div className="dot" />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
             <div ref={chatBottomRef} />
           </div>

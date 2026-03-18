@@ -1,7 +1,9 @@
 {
+  "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "$comment": "⚠️ IMPORTANT: This deploys FRONTEND ONLY. You must deploy the backend separately and set VITE_API_BASE_URL environment variable in Vercel to your backend URL (e.g., https://your-api.onrender.com). Without this, file uploads will fail with 405 errors. See DEPLOYMENT.md for details."
 }
