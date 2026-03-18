@@ -43,19 +43,26 @@ export const loadDashboardConfig = (): Promise<any> => {
     input.type = 'file';
     input.accept = '.json';
     input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const config = JSON.parse(event.target?.result as string);
-            resolve(config);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        reader.readAsText(file);
+      const target = e.target as HTMLInputElement | null;
+      const file = target?.files?.[0];
+      if (!file) {
+        reject(new Error('No file selected'));
+        return;
       }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const config = JSON.parse(event.target?.result as string);
+          resolve(config);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+      reader.readAsText(file);
     };
     input.click();
   });
