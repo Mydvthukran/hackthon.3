@@ -10,7 +10,11 @@ load_dotenv()
 # Initialize client
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    api_key = "dummy"
+    raise ValueError(
+        "GEMINI_API_KEY environment variable is not set. "
+        "Please set your Google Gemini API key. "
+        "Get your API key from: https://makersuite.google.com/app/apikey"
+    )
 
 client = genai.Client(api_key=api_key)
 
@@ -119,23 +123,35 @@ Document why you chose the chart in description.
 
 def generate_dashboard_spec(schema: str, sample_rows: str, user_request: str) -> dict:
     prompt = SYSTEM_PROMPT.replace("{{SCHEMA}}", schema).replace("{{SAMPLE_ROWS}}", sample_rows).replace("{{USER_REQUEST}}", user_request)
-    
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.2, 
-        ),
-    )
-    
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.2,
+            ),
+        )
+    except Exception as e:
+        # Check if it's a permission error
+        error_msg = str(e)
+        if "403" in error_msg or "PERMISSION_DENIED" in error_msg:
+            raise ValueError(
+                "API key authentication failed. Your Google Gemini API key may be invalid, "
+                "expired, or reported as leaked. Please check your GEMINI_API_KEY environment variable "
+                "and get a new API key from: https://makersuite.google.com/app/apikey"
+            ) from e
+        # Re-raise other exceptions
+        raise
+
     try:
         raw_text = response.text
         if raw_text.startswith("```json"):
             raw_text = raw_text.split("```json", 1)[1].rsplit("```", 1)[0].strip()
         elif raw_text.startswith("```"):
             raw_text = raw_text.split("```", 1)[1].rsplit("```", 1)[0].strip()
-            
+
         return json.loads(raw_text)
     except Exception as e:
         print(f"Error parsing JSON from LLM: {e}")
