@@ -124,27 +124,42 @@ async def analyze_query(req: QueryRequest):
 # ---------------------------------------------------------------------------
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
-if os.path.isdir(FRONTEND_DIST):
+_assets_dir = os.path.join(FRONTEND_DIST, "assets")
+if os.path.isdir(_assets_dir):
     # Serve static assets (JS, CSS, images)
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="static-assets")
+    app.mount("/assets", StaticFiles(directory=_assets_dir), name="static-assets")
 
-    # Serve favicon and other root static files
-    @app.get("/favicon.svg")
-    async def favicon():
-        return FileResponse(os.path.join(FRONTEND_DIST, "favicon.svg"))
 
-    # Catch-all route: serve index.html for any non-API route (SPA support)
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # Don't intercept API routes
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="Not found")
+# Serve favicon and other root static files
+@app.get("/favicon.svg")
+async def favicon():
+    fav_path = os.path.join(FRONTEND_DIST, "favicon.svg")
+    if os.path.isfile(fav_path):
+        return FileResponse(fav_path)
+    raise HTTPException(status_code=404, detail="favicon not found")
 
-        file_path = os.path.join(FRONTEND_DIST, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
 
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+# Catch-all route: serve index.html for any non-API route (SPA support)
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Don't intercept API routes
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    index_html = os.path.join(FRONTEND_DIST, "index.html")
+    if not os.path.isdir(FRONTEND_DIST) or not os.path.isfile(index_html):
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend build not found. Run 'npm install && npm run build' in the frontend directory.",
+        )
+
+    # Resolve and validate to prevent path traversal
+    dist_real = os.path.realpath(FRONTEND_DIST)
+    file_path = os.path.realpath(os.path.join(FRONTEND_DIST, full_path))
+    if full_path and file_path.startswith(dist_real + os.sep) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    return FileResponse(index_html)
 
 if __name__ == "__main__":
     import uvicorn
